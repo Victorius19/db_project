@@ -1,3 +1,6 @@
+# syntax=docker/dockerfile:1
+
+# Build stage
 FROM golang:1.17 AS build
 
 WORKDIR /app
@@ -11,23 +14,28 @@ ENV PATH=$GOPATH/bin:$PATH
 
 COPY . .
 RUN go mod tidy
-RUN easyjson -all -pkg src/models
+RUN easyjson -all -pkg app/models #TODO: go generate
 RUN go build -o api.run ./cmd/.
 
+# Deploy stage
 FROM ubuntu
 
 RUN apt -y update && \
     echo "tzdata "Geographic area" select 8" | debconf-set-selections && \
     apt install -y tzdata && apt install -y postgresql
 
-ENV USER user
-ENV DB_NAME forum
+ENV PGDEFAULT_USER postgres
+ENV PGFORUM_USER forum_user
+ENV PGPASSWORD forum_user_password
+ENV PGDB_NAME forum
+ENV PGPORT 5432
+ENV API_PORT 5000
 
-USER postgres
+USER $PGDEFAULT_USER
 
 RUN /etc/init.d/postgresql start && \
-    psql --command "CREATE USER $USER WITH SUPERUSER PASSWORD 'test_user';" && \
-    createdb --owner=$USER $DB_NAME && \
+    psql --command "CREATE USER $PGFORUM_USER WITH SUPERUSER PASSWORD '$PGPASSWORD';" && \
+    createdb --owner=$PGFORUM_USER $PGDB_NAME && \
     /etc/init.d/postgresql stop
 
 ENV ARTIFACT api.run
@@ -37,10 +45,10 @@ COPY --from=build /app/$ARTIFACT $ARTIFACT
 COPY ./db/db.sql db.sql
 
 ENV MODE release
-
+#TODO: docker-compose
 CMD service postgresql start && \
-    psql -h localhost -p 5432 -d $DB_NAME -U $USER -w -q -f db.sql \
+    psql -h localhost -p $PGPORT -d $PGDB_NAME -U $PGFORUM_USER -w -q -f db.sql \
     && ./$ARTIFACT
 
 VOLUME ["/var/lib/postgresql/data"]
-EXPOSE 5000
+EXPOSE $API_PORT
