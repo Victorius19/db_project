@@ -1,6 +1,3 @@
-# syntax=docker/dockerfile:1
-
-# Build stage
 FROM golang:1.17 AS build
 
 WORKDIR /app
@@ -14,15 +11,14 @@ ENV PATH=$GOPATH/bin:$PATH
 
 COPY . .
 RUN go mod tidy
-RUN easyjson -all -pkg app/models #TODO: go generate
+RUN easyjson -all -pkg app/models
 RUN go build -o api.run ./cmd/.
 
-# Deploy stage
 FROM ubuntu
-
+ENV PGVER 12
 RUN apt -y update && \
     echo "tzdata "Geographic area" select 8" | debconf-set-selections && \
-    apt install -y tzdata && apt install -y postgresql
+    apt install -y tzdata && apt install -y postgresql-$PGVER
 
 ENV PGDEFAULT_USER postgres
 ENV PGFORUM_USER forum_user
