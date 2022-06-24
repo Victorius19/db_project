@@ -1,50 +1,36 @@
 FROM golang:1.17 AS build
 
+ADD . /app
 WORKDIR /app
-
-COPY go.mod ./
-COPY go.sum ./
-
-RUN go mod download
-RUN go get -u github.com/mailru/easyjson/...
-ENV PATH=$GOPATH/bin:$PATH
 
 COPY . .
 RUN go mod tidy
-RUN easyjson -all -pkg app/models
-RUN go build -o api.run ./cmd/.
+RUN go build  ./main.go
 
-FROM ubuntu
+FROM ubuntu:20.04
+
+RUN apt-get -y update && apt-get install -y tzdata
+ENV TZ=Russia/Moscow
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 ENV PGVER 12
-RUN apt -y update && \
-    echo "tzdata "Geographic area" select 8" | debconf-set-selections && \
-    apt install -y tzdata && apt install -y postgresql-$PGVER
+RUN apt-get -y update && apt-get install -y postgresql-$PGVER
+USER postgres
 
-ENV PGDEFAULT_USER postgres
-ENV PGFORUM_USER forum_user
-ENV PGPASSWORD forum_user_password
-ENV PGDB_NAME forum
-ENV PGPORT 5432
-ENV API_PORT 5000
-
-USER $PGDEFAULT_USER
-
-RUN /etc/init.d/postgresql start && \
-    psql --command "CREATE USER $PGFORUM_USER WITH SUPERUSER PASSWORD '$PGPASSWORD';" && \
-    createdb --owner=$PGFORUM_USER $PGDB_NAME && \
+RUN /etc/init.d/postgresql start &&\
+    psql --command "create user forum_user with superuser password 'forum_user_password';" &&\
+    createdb -O forum_user forum &&\
     /etc/init.d/postgresql stop
 
-ENV ARTIFACT api.run
+EXPOSE 5432
+VOLUME  ["/etc/postgresql", "/var/log/postgresql", "/var/lib/postgresql"]
+USER root
 
-WORKDIR /app
-COPY --from=build /app/$ARTIFACT $ARTIFACT
-COPY ./db/db.sql db.sql
+WORKDIR /usr/src/app
+COPY . .
+COPY --from=build /app/main/ .
 
-ENV MODE release
-#TODO: docker-compose
-CMD service postgresql start && \
-    psql -h localhost -p $PGPORT -d $PGDB_NAME -U $PGFORUM_USER -w -q -f db.sql \
-    && ./$ARTIFACT
+EXPOSE 5000
+ENV PGPASSWORD forum_user_password
+CMD service postgresql start && psql -h localhost -d forum -U forum_user -p 5432 -a -q -f ./db/db.sql && ./main
 
-VOLUME ["/var/lib/postgresql/data"]
-EXPOSE $API_PORT
