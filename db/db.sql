@@ -31,8 +31,7 @@ CREATE UNLOGGED TABLE IF NOT EXISTS forum_users
     forum    CITEXT NOT NULL REFERENCES forums (slug),
     nickname CITEXT NOT NULL REFERENCES users (nickname),
 
-    PRIMARY KEY (forum, nickname),
-    UNIQUE (forum, nickname)
+    PRIMARY KEY (forum, nickname)
 );
 
 CREATE UNLOGGED TABLE threads
@@ -53,8 +52,7 @@ CREATE UNLOGGED TABLE votes
     thread   INTEGER NOT NULL REFERENCES threads(id),
     value    INTEGER NOT NULL,
 
-    PRIMARY KEY (thread, nickname),
-    UNIQUE (thread, nickname)
+    PRIMARY KEY (thread, nickname)
 );
 
 CREATE UNLOGGED TABLE posts
@@ -187,11 +185,8 @@ CREATE TRIGGER addUserByPosts
 EXECUTE PROCEDURE addUser();
 
 CREATE INDEX IF NOT EXISTS sortUsers ON forum_users (nickname);
-CREATE INDEX IF NOT EXISTS sortForumUsers ON forum_users (forum, nickname);
 CREATE INDEX IF NOT EXISTS sortForumsAndTime ON threads (forum, created);
 CREATE INDEX IF NOT EXISTS sortUsers ON users (nickname, email);
-
-CREATE INDEX IF NOT EXISTS sortSlug ON forums using hash (slug);
 
 CREATE INDEX IF NOT EXISTS sortThreadsAndId ON posts (thread, id);
 CREATE INDEX IF NOT EXISTS sortThreadsAndPath ON posts (thread, path);
